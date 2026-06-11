@@ -1,0 +1,90 @@
+# GoReleaser configuration for the cf CLI.
+# Release: `git tag v0.1.0 && git push --tags` (CI runs `goreleaser release`).
+# Test locally without publishing: `goreleaser release --snapshot --clean`.
+version: 2
+
+project_name: cf
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: cf
+    main: ./cmd/cf
+    binary: cf
+    env:
+      - CGO_ENABLED=0
+    goos: [darwin, linux, windows]
+    goarch: [amd64, arm64]
+    ignore:
+      - goos: windows
+        goarch: arm64
+    # Inject version metadata into cmd.* (matches the Makefile ldflags).
+    ldflags:
+      - -s -w
+      - -X github.com/clickfunnels/clickfunnels-cli/cmd.Version={{.Version}}
+      - -X github.com/clickfunnels/clickfunnels-cli/cmd.Commit={{.ShortCommit}}
+      - -X github.com/clickfunnels/clickfunnels-cli/cmd.Date={{.Date}}
+
+archives:
+  - formats: [tar.gz]
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+
+# Linux packages (.deb/.rpm/.apk), attached to the GitHub Release. No extra repo
+# needed — `dpkg -i` / `rpm -i` the artifact, or wire up an apt/yum repo later.
+nfpms:
+  - id: cf
+    package_name: cf
+    formats: [deb, rpm, apk]
+    maintainer: ClickFunnels <support@clickfunnels.com>
+    homepage: https://developers.myclickfunnels.com
+    description: ClickFunnels from your terminal
+    license: MIT
+    bindir: /usr/bin
+
+checksum:
+  name_template: "checksums.txt"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
+
+# Homebrew tap: on each tag, GoReleaser commits an updated cf cask to
+# clickfunnels/homebrew-tap, so `brew install clickfunnels/tap/cf` works.
+# Needs a cross-repo token in CI (env HOMEBREW_TAP_GITHUB_TOKEN — a PAT/App
+# token with write access to the tap repo; the default GITHUB_TOKEN can't push
+# to another repo).
+homebrew_casks:
+  - name: cf
+    repository:
+      owner: clickfunnels
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+    homepage: https://developers.myclickfunnels.com
+    description: ClickFunnels from your terminal
+    commit_author:
+      name: clickfunnels-bot
+      email: support@clickfunnels.com
+    # Until the macOS binary is signed + notarized, Homebrew casks quarantine the
+    # download and Gatekeeper blocks the unsigned binary. Strip the quarantine
+    # flag on install so `cf` runs. Remove this block once notarization is wired
+    # up.
+    hooks:
+      post:
+        install: |
+          if OS.mac?
+            system_command "/usr/bin/xattr",
+              args: ["-dr", "com.apple.quarantine", "#{staged_path}/cf"]
+          end
+
+# Windows: the .zip on the GitHub Release is the baseline. For `scoop install` or
+# `winget`, add a `scoops:`/`winget:` block here — each needs its own manifest
+# repo (a Scoop bucket / winget-pkgs PR), so it's a follow-up, not required.
