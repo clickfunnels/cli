@@ -13,8 +13,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/clickfunnels/clickfunnels-cli/internal/api"
-	"github.com/clickfunnels/clickfunnels-cli/internal/output"
+	"github.com/clickfunnels/cli/internal/api"
+	"github.com/clickfunnels/cli/internal/output"
 )
 
 // opSpec is one API operation from the generated manifest (operations.gen.go).

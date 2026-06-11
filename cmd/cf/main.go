@@ -9,7 +9,7 @@ import (
 
 	"github.com/charmbracelet/fang"
 
-	"github.com/clickfunnels/clickfunnels-cli/cmd"
+	"github.com/clickfunnels/cli/cmd"
 )
 
 func main() {

@@ -2,7 +2,7 @@
 
 A terminal client for the ClickFunnels public API, written in Go on the
 [Charm](https://charm.land) stack (Fang + Cobra + Lip Gloss + Huh).
-The binary is `cf`. Module path: `github.com/clickfunnels/clickfunnels-cli`.
+The binary is `cf`. Module path: `github.com/clickfunnels/cli`.
 
 This repo was extracted from the `clickfunnels/admin` monorepo (it used to live
 at `admin/projects/cli`). It is now standalone; building and running need **only
@@ -383,8 +383,8 @@ Working end-to-end against a live dev server, including the **full browser
 login** (public client, workspace picked in the browser, no secret): OAuth login
 + multi-account, curated `teams`/`contacts`(CRUD)/`blogs posts`, the full
 generated surface, `cf api`, and `--output` formats.
-Pushed to `github.com/clickfunnels/clickfunnels-cli` (private); RWX CI is green;
-`go install github.com/clickfunnels/clickfunnels-cli/cmd/cf@latest` yields `cf`.
+Pushed to `github.com/clickfunnels/cli` (private); RWX CI is green;
+`go install github.com/clickfunnels/cli/cmd/cf@latest` yields `cf`.
 
 **v0.1.0 is published.** The production public client id (`clickfunnels_cli`) is
 the in-code default, so the released binary authorizes against `myclickfunnels.com`

@@ -3,7 +3,7 @@ package cmd
 import (
 	"github.com/spf13/cobra"
 
-	"github.com/clickfunnels/clickfunnels-cli/internal/output"
+	"github.com/clickfunnels/cli/internal/output"
 )
 
 // outputFormat reads and validates the global --output/-o flag.

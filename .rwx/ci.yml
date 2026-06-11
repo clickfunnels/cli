@@ -1,8 +1,8 @@
-# RWX CI for clickfunnels-cli.
+# RWX CI for cli.
 #
 # RWX auto-discovers .rwx/*.yml and runs the triggers below — but only once the
 # repo is connected to RWX (the RWX GitHub App must be granted access to
-# clickfunnels/clickfunnels-cli; that's a one-time org/dashboard step that this
+# clickfunnels/cli; that's a one-time org/dashboard step that this
 # file can't do).
 #
 # Go isn't a first-party RWX leaf, so we install the toolchain pinned to the
@@ -31,7 +31,7 @@ tasks:
   - key: code
     call: git/clone 2.0.7
     with:
-      repository: https://github.com/clickfunnels/clickfunnels-cli
+      repository: https://github.com/clickfunnels/cli
       ref: ${{ init.commit-sha }}
       github-token: ${{ github.token }}
 

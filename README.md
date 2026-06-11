@@ -17,14 +17,14 @@ brew install clickfunnels/tap/cf
 
 ```bash
 GOPRIVATE=github.com/clickfunnels/* \
-  go install github.com/clickfunnels/clickfunnels-cli/cmd/cf@latest
+  go install github.com/clickfunnels/cli/cmd/cf@latest
 ```
 
 **From source:**
 
 ```bash
-git clone https://github.com/clickfunnels/clickfunnels-cli
-cd clickfunnels-cli && make install   # installs `cf` to your $GOBIN
+git clone https://github.com/clickfunnels/cli
+cd cli && make install   # installs `cf` to your $GOBIN
 ```
 
 ## Sign in

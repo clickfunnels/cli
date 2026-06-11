@@ -1,4 +1,4 @@
-module github.com/clickfunnels/clickfunnels-cli
+module github.com/clickfunnels/cli
 
 go 1.26.3
 

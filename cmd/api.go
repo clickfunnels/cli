@@ -8,7 +8,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/clickfunnels/clickfunnels-cli/internal/api"
+	"github.com/clickfunnels/cli/internal/api"
 )
 
 func newAPICmd() *cobra.Command {

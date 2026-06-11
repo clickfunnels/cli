@@ -23,9 +23,9 @@ builds:
     # Inject version metadata into cmd.* (matches the Makefile ldflags).
     ldflags:
       - -s -w
-      - -X github.com/clickfunnels/clickfunnels-cli/cmd.Version={{.Version}}
-      - -X github.com/clickfunnels/clickfunnels-cli/cmd.Commit={{.ShortCommit}}
-      - -X github.com/clickfunnels/clickfunnels-cli/cmd.Date={{.Date}}
+      - -X github.com/clickfunnels/cli/cmd.Version={{.Version}}
+      - -X github.com/clickfunnels/cli/cmd.Commit={{.ShortCommit}}
+      - -X github.com/clickfunnels/cli/cmd.Date={{.Date}}
 
 # Sign + notarize the darwin binaries (both arches) with our Developer ID
 # Application cert via GoReleaser's built-in quill integration — runs on any
