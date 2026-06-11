@@ -33,14 +33,19 @@ func newAuthLoginCmd() *cobra.Command {
 		clientSecret string
 		host         string
 		scopes       []string
+		installation bool
 	)
 
 	cmd := &cobra.Command{
 		Use:   "login",
-		Short: "Add a workspace by logging in via your browser (OAuth2)",
-		Long: "Authorize a workspace and store its token. ClickFunnels tokens are " +
-			"workspace-scoped, so run this once per workspace you want to use; they " +
-			"accumulate and you switch between them with --workspace.",
+		Short: "Log in via your browser (OAuth2)",
+		Long: "Authorize ClickFunnels and store the token. By default you authorize " +
+			"as yourself — your token reaches every workspace you belong to, and each " +
+			"is recorded so you can switch between them with --workspace.\n\n" +
+			"Pass --installation to use the workspace-scoped installation flow instead: " +
+			"you pick one workspace in the browser and get a persistent token for it. " +
+			"That suits shared/service automation, but the authorization outlives your " +
+			"own access, so prefer the default for personal use.",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cfg, err := config.Load()
 			if err != nil {
@@ -62,9 +67,16 @@ func newAuthLoginCmd() *cobra.Command {
 				host = firstNonEmpty(os.Getenv("CF_CLI_HOST"), cfg.Host)
 			}
 
-			// OAuth happens on the accounts host; the user picks the workspace in
-			// the browser (new_installation=true), so no subdomain is needed here.
+			// OAuth happens on the workspace-agnostic accounts host. The default
+			// (user) flow authorizes as the human; --installation uses the legacy
+			// workspace-scoped flow, where the user picks one workspace in the
+			// browser (new_installation=true).
 			oauthBase := config.OAuthBaseURL(host)
+
+			var authParams map[string]string
+			if installation {
+				authParams = map[string]string{"new_installation": "true"}
+			}
 
 			fmt.Println(ui.Subtle.Render("Opening your browser to authorize…"))
 			ctx, cancel := context.WithTimeout(cmd.Context(), 3*time.Minute)
@@ -75,40 +87,45 @@ func newAuthLoginCmd() *cobra.Command {
 				ClientID:     clientID,
 				ClientSecret: clientSecret,
 				Scopes:       scopes,
-				AuthParams:   map[string]string{"new_installation": "true"},
+				AuthParams:   authParams,
 			})
 			if err != nil {
 				return err
 			}
 
-			// Identify which workspace the token was scoped to (IDM resources are
-			// served on the accounts host).
+			// IDM resources (teams/workspaces) are served on the accounts host.
 			client, err := api.New(oauthBase+"/api/v2", result.AccessToken)
 			if err != nil {
 				return err
 			}
-			ws, err := resolveLoginWorkspace(ctx, client)
-			if err != nil {
-				return fmt.Errorf("authorized, but couldn't identify the workspace: %w", err)
-			}
 
-			account := config.Account{
-				Subdomain:   ws.Subdomain,
-				Host:        host,
-				ClientID:    clientID,
-				WorkspaceID: int64(ws.Id),
-				PublicID:    str(ws.PublicId),
-				Name:        ws.Name,
-				AccessToken: result.AccessToken,
-				TokenType:   result.TokenType,
-				Scope:       result.Scope,
+			// Record the workspace(s) the token can reach. An installation token is
+			// scoped to one workspace; a user token reaches all of the user's, so we
+			// store one Account each (sharing the token) and select with --workspace.
+			var added []config.Account
+			if installation {
+				ws, err := resolveLoginWorkspace(ctx, client)
+				if err != nil {
+					return fmt.Errorf("authorized, but couldn't identify the workspace: %w", err)
+				}
+				added = append(added, newAccount(ws, host, clientID, result, true))
+			} else {
+				all, err := listLoginWorkspaces(ctx, client)
+				if err != nil {
+					return fmt.Errorf("authorized, but couldn't list your workspaces: %w", err)
+				}
+				for _, ws := range all {
+					added = append(added, newAccount(ws, host, clientID, result, false))
+				}
 			}
 
 			store, err := config.LoadStore()
 			if err != nil {
 				return err
 			}
-			store.Upsert(account)
+			for _, a := range added {
+				store.Upsert(a)
+			}
 			if err := store.Save(); err != nil {
 				return err
 			}
@@ -119,9 +136,14 @@ func newAuthLoginCmd() *cobra.Command {
 				return err
 			}
 
-			fmt.Printf("\n%s Logged in to %s\n", ui.Success.Render(ui.Check), ui.Accent.Render(account.Label()))
+			check := ui.Success.Render(ui.Check)
+			if len(added) == 1 {
+				fmt.Printf("\n%s Logged in to %s\n", check, ui.Accent.Render(added[0].Label()))
+			} else {
+				fmt.Printf("\n%s Logged in — %s workspaces available.\n", check, ui.Accent.Render(fmt.Sprintf("%d", len(added))))
+			}
 			if len(store.Accounts) > 1 {
-				fmt.Println(ui.Subtle.Render(fmt.Sprintf("%d workspaces signed in — use --workspace to choose.", len(store.Accounts))))
+				fmt.Println(ui.Subtle.Render("Use --workspace <id|public-id|subdomain> to choose (or set CF_CLI_WORKSPACE)."))
 			}
 			return nil
 		},
@@ -131,7 +153,24 @@ func newAuthLoginCmd() *cobra.Command {
 	cmd.Flags().StringVar(&clientSecret, "client-secret", "", "OAuth client secret (or set CF_CLI_CLIENT_SECRET); optional once server-side PKCE is enabled")
 	cmd.Flags().StringVar(&host, "host", "", "override API host (default myclickfunnels.com; or set CF_CLI_HOST)")
 	cmd.Flags().StringSliceVar(&scopes, "scope", []string{"read", "write"}, "OAuth scopes to request")
+	cmd.Flags().BoolVar(&installation, "installation", false, "use the workspace-scoped installation flow (a persistent per-workspace token) instead of authorizing as yourself")
 	return cmd
+}
+
+// newAccount builds an Account from a workspace and the freshly-issued token.
+func newAccount(ws api.WorkspaceAttributes, host, clientID string, result *auth.LoginResult, installation bool) config.Account {
+	return config.Account{
+		Subdomain:    ws.Subdomain,
+		Host:         host,
+		ClientID:     clientID,
+		WorkspaceID:  int64(ws.Id),
+		PublicID:     str(ws.PublicId),
+		Name:         ws.Name,
+		AccessToken:  result.AccessToken,
+		TokenType:    result.TokenType,
+		Scope:        result.Scope,
+		Installation: installation,
+	}
 }
 
 // firstNonEmpty returns the first non-empty string, or "".
@@ -144,24 +183,33 @@ func firstNonEmpty(vals ...string) string {
 	return ""
 }
 
-// resolveLoginWorkspace identifies the workspace a freshly-issued token is
-// scoped to. The user picked it during the browser flow, so the token usually
-// grants one workspace; if it somehow grants several, prompt to pick.
-func resolveLoginWorkspace(ctx context.Context, client *api.ClientWithResponses) (api.WorkspaceAttributes, error) {
+// listLoginWorkspaces returns every workspace a freshly-issued token can reach,
+// across the user's teams.
+func listLoginWorkspaces(ctx context.Context, client *api.ClientWithResponses) ([]api.WorkspaceAttributes, error) {
 	teamsResp, err := client.ListTeamsWithResponse(ctx, &api.ListTeamsParams{})
 	if err != nil {
-		return api.WorkspaceAttributes{}, err
+		return nil, err
 	}
 	var all []api.WorkspaceAttributes
 	for _, t := range derefSlice(teamsResp.JSON200) {
 		wsResp, err := client.ListWorkspacesWithResponse(ctx, t.Id, &api.ListWorkspacesParams{})
 		if err != nil {
-			return api.WorkspaceAttributes{}, err
+			return nil, err
 		}
 		all = append(all, derefSlice(wsResp.JSON200)...)
 	}
 	if len(all) == 0 {
-		return api.WorkspaceAttributes{}, fmt.Errorf("no workspaces accessible with this authorization")
+		return nil, fmt.Errorf("no workspaces accessible with this authorization")
+	}
+	return all, nil
+}
+
+// resolveLoginWorkspace identifies the single workspace an installation token is
+// scoped to. It's normally exactly one; if several come back, prompt to pick.
+func resolveLoginWorkspace(ctx context.Context, client *api.ClientWithResponses) (api.WorkspaceAttributes, error) {
+	all, err := listLoginWorkspaces(ctx, client)
+	if err != nil {
+		return api.WorkspaceAttributes{}, err
 	}
 	if len(all) == 1 {
 		return all[0], nil
@@ -252,10 +300,11 @@ func newAuthStatusCmd() *cobra.Command {
 					a.Subdomain,
 					a.PublicID,
 					fmt.Sprintf("%d", a.WorkspaceID),
+					accountType(a),
 					maskToken(a.AccessToken),
 				})
 			}
-			fmt.Println(ui.RenderTable([]string{"NAME", "SUBDOMAIN", "PUBLIC ID", "ID", "TOKEN"}, rows))
+			fmt.Println(ui.RenderTable([]string{"NAME", "SUBDOMAIN", "PUBLIC ID", "ID", "TYPE", "TOKEN"}, rows))
 
 			if len(store.Accounts) == 1 {
 				fmt.Println(ui.Subtle.Render("This is the default workspace (only one signed in)."))
@@ -265,6 +314,14 @@ func newAuthStatusCmd() *cobra.Command {
 			return nil
 		},
 	}
+}
+
+// accountType labels how an account was authorized, for `cf auth status`.
+func accountType(a config.Account) string {
+	if a.Installation {
+		return "installation"
+	}
+	return "user"
 }
 
 func maskToken(t string) string {

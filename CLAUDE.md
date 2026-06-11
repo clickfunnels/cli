@@ -94,11 +94,20 @@ spec (OpenAPI 3.1, from the admin repo)         # SPEC_SRC, default ../admin/...
   (`enum: I18n.available_locales.map(&:to_s)`); and there is no `limit` query
   param on contacts despite earlier assumptions. The normalizer only neutralizes
   what would break codegen — it does not "fix" naming.
-- **Tokens are workspace-scoped.** One OAuth authorization grants one workspace.
-  So the CLI is multi-account: each `cf auth login` stores one `Account`.
-  Active-account selection (Heroku-style): `--workspace`/`-w` → `CF_CLI_WORKSPACE`
-  env → the only signed-in workspace → else error. The selector matches
-  workspace **id, public id, or subdomain**.
+- **Two login modes** (see `cmd/auth.go`):
+  - **User (default):** authorize as the human; the token reaches every workspace
+    they belong to. We record **one `Account` per reachable workspace**, all
+    sharing that token (`Account.Installation = false`). Tied to the human's
+    access.
+  - **`--installation`:** the legacy workspace-scoped flow (`new_installation=true`
+    → a persistent faux-user token for one chosen workspace). Records a single
+    `Account` (`Installation = true`). Outlives the human's own access, so it's
+    for shared/service automation, not personal use.
+
+  Either way it's multi-account: selection (Heroku-style) is `--workspace`/`-w` →
+  `CF_CLI_WORKSPACE` → the only signed-in workspace → else error, matching
+  workspace **id, public id, or subdomain**. `cf auth status` shows a TYPE column
+  (user/installation).
 - **Config dir is `~/.config/cf` on every platform** (honors `XDG_CONFIG_HOME`,
   else `~/.config/cf`). Do NOT use Go's `os.UserConfigDir()` — on macOS it
   returns `~/Library/Application Support`, which silently broke hand-placed
@@ -107,11 +116,12 @@ spec (OpenAPI 3.1, from the admin repo)         # SPEC_SRC, default ../admin/...
   `CF_CLI_API_BASE_URL` (or `Account.APIBaseURL`) overrides the API base entirely
   (scheme/host/port/path) — used for dev/test/CI.
 - **Login flow:** OAuth is served on the workspace-agnostic **accounts host**
-  (`https://accounts.<host>`), and the user **picks the workspace in the browser**
-  (`cf auth login` passes `new_installation=true`) — so login takes **no
-  subdomain**. It's a loopback flow on a **fixed port** (8976→8977→8978) that must
-  match the redirect URIs on the server's OAuth app. After the token is issued,
-  the CLI discovers which workspace it was scoped to and stores it.
+  (`https://accounts.<host>`), so login takes **no subdomain**. It's a loopback
+  flow on a **fixed port** (8976→8977→8978) that must match the redirect URIs on
+  the server's OAuth app. The default (user) flow sends no extra params and gets
+  a personal token; `--installation` passes `new_installation=true` so the server
+  shows a workspace picker and scopes the token to one workspace. After the token
+  is issued, the CLI lists the reachable workspace(s) and stores them.
 - **The CLI is a public OAuth client** (`confidential: false`), so browser login
   needs **no client secret** — and, because there's no `force_pkce`, **no PKCE
   migration is required** either. The CLI still sends PKCE on the wire
@@ -313,13 +323,20 @@ thing.
 ClickFunnels uses [Doorkeeper](https://github.com/doorkeeper-gem/doorkeeper)
 (OAuth2). Key facts and how they shaped the design:
 
-- **Endpoints + workspace selection:** OAuth is served on the workspace-agnostic
-  **accounts host** (`https://accounts.<host>`), not a workspace subdomain. The
-  CLI passes `new_installation=true`, so `Platform::CustomConnectionWorkflow`
-  shows a **workspace picker** during consent and scopes the issued token to the
-  chosen workspace (via a "faux user", the same mechanism Zapier uses). So login
-  takes **no subdomain**. After the token is issued the CLI lists
-  teams/workspaces on the accounts host to learn which workspace it got.
+- **Endpoints:** OAuth is served on the workspace-agnostic **accounts host**
+  (`https://accounts.<host>`), not a workspace subdomain — so login takes **no
+  subdomain**. After the token is issued the CLI lists teams/workspaces on the
+  accounts host to learn what it can reach.
+- **Two authorization models** (`--installation` flag):
+  - **User (default):** authorize as the human (`current_user` is the token's
+    resource owner). The token reaches every workspace the user belongs to and is
+    bound to their access — the right model for a personal CLI. The CLI records
+    one Account per reachable workspace.
+  - **Installation (`--installation`):** passes `new_installation=true`, so
+    `Platform::CustomConnectionWorkflow` shows a **workspace picker** and scopes
+    the token to one workspace via a persistent **faux user** (the Zapier
+    mechanism). The authorization **outlives the human's own access**, which is
+    why it's opt-in and reserved for shared/service automation.
 - **Flow:** authorization-code with a **loopback redirect** ("native app"
   pattern). The CLI binds one of a few **fixed** localhost ports
   (8976→8977→8978) — fixed because Doorkeeper matches the redirect URI *exactly*
@@ -338,11 +355,12 @@ ClickFunnels uses [Doorkeeper](https://github.com/doorkeeper-gem/doorkeeper)
   `internal/config` so it can be swapped for an OS keyring without touching
   callers.
 
-**Multiple workspaces.** An authorization grants exactly one workspace, so the
-CLI is multi-account: each `cf auth login` produces one `Account` and they
-accumulate in the `Store`. Active-account selection (Heroku model): `--workspace`
-/`-w` → `CF_CLI_WORKSPACE` → the only signed-in account → else error. The
-selector matches a workspace **id, public id, or subdomain** (`Account.Matches`).
+**Multiple workspaces.** The CLI is multi-account either way: a user login
+records one `Account` per reachable workspace (sharing the token), an
+installation login records one. They accumulate in the `Store`. Active-account
+selection (Heroku model): `--workspace`/`-w` → `CF_CLI_WORKSPACE` → the only
+signed-in account → else error. The selector matches a workspace **id, public
+id, or subdomain** (`Account.Matches`).
 
 ### Versioning
 

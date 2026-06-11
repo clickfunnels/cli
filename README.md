@@ -33,18 +33,24 @@ cd clickfunnels-cli && make install   # installs `cf` to your $GOBIN
 cf auth login
 ```
 
-This opens your browser. Sign in and select the workspace you want to use. No
-API keys to copy or paste.
-
-To use more than one workspace, run `cf auth login` again for each one. Select
-which workspace a command targets with `-w` (subdomain, id, or public id), or
-set a default with `CF_CLI_WORKSPACE`:
+This opens your browser to authorize ClickFunnels as **you** — no API keys to
+copy or paste. Your login reaches every workspace you belong to; each is
+recorded, and you choose which one a command targets with `-w` (subdomain, id,
+or public id) or a `CF_CLI_WORKSPACE` default:
 
 ```bash
 cf auth status                 # list signed-in workspaces
 cf contacts list -w acme       # target the "acme" workspace
 cf auth logout -w acme         # or: cf auth logout --all
 ```
+
+### Installation logins
+
+For shared or automated use, `cf auth login --installation` uses ClickFunnels'
+workspace-scoped installation flow instead: you pick one workspace in the
+browser and get a persistent token scoped to it. Unlike a personal login, that
+authorization isn't tied to your own access — it keeps working after you leave —
+so reserve it for service accounts and automation, not day-to-day personal use.
 
 ## Getting help
 
