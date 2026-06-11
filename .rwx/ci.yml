@@ -1,0 +1,49 @@
+# RWX CI for clickfunnels-cli.
+#
+# RWX auto-discovers .rwx/*.yml and runs the triggers below — but only once the
+# repo is connected to RWX (the RWX GitHub App must be granted access to
+# clickfunnels/clickfunnels-cli; that's a one-time org/dashboard step that this
+# file can't do).
+#
+# Go isn't a first-party RWX leaf, so we install the toolchain pinned to the
+# version in go.mod. Everything runs in one task to avoid threading PATH across
+# tasks; split into parallel build/vet/test tasks later if the matrix grows.
+on:
+  github:
+    push:
+      - if: ${{ event.git.branch == "main" }}
+        init:
+          commit-sha: ${{ event.git.sha }}
+    pull_request:
+      - actions: [opened, synchronize, reopened]
+        init:
+          commit-sha: ${{ event.git.sha }}
+  # Allows manual launches via `rwx run .rwx/ci.yml`.
+  cli:
+    init:
+      commit-sha: ${{ event.git.sha }}
+
+base:
+  image: ubuntu:24.04
+  config: rwx/base 1.0.0
+
+tasks:
+  - key: code
+    call: git/clone 2.0.7
+    with:
+      repository: https://github.com/clickfunnels/clickfunnels-cli
+      ref: ${{ init.commit-sha }}
+      github-token: ${{ github.token }}
+
+  - key: ci
+    use: code
+    run: |
+      set -eo pipefail
+      GO_VERSION=1.26.3
+      curl -fsSL "https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz" | sudo tar -C /usr/local -xz
+      export PATH="/usr/local/go/bin:${PATH}"
+      go version
+      if [ -n "$(gofmt -l .)" ]; then echo "gofmt needed on:"; gofmt -l .; exit 1; fi
+      go build ./...
+      go vet ./...
+      go test ./...

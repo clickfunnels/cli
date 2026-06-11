@@ -1,0 +1,16 @@
+# oapi-codegen configuration. Generates Go models AND a typed client for the
+# full ClickFunnels API, from the normalized spec, into package `api`.
+#
+# The result is large (~54k lines); it's committed and exempt from the repo's
+# large-file hook (*.gen.go) since it's machine-generated, vendored source.
+#
+# The thin transport (auth + error normalization via an http doer, cursor
+# pagination) lives hand-written alongside this in internal/api; everything
+# else — types, request/response shapes, path & query assembly — is generated.
+package: api
+output: ../internal/api/api.gen.go
+generate:
+  models: true
+  client: true
+output-options:
+  skip-prune: true # keep all model types available, not just referenced ones
