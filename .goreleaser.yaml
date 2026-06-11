@@ -27,6 +27,25 @@ builds:
       - -X github.com/clickfunnels/clickfunnels-cli/cmd.Commit={{.ShortCommit}}
       - -X github.com/clickfunnels/clickfunnels-cli/cmd.Date={{.Date}}
 
+# Sign + notarize the darwin binaries (both arches) with our Developer ID
+# Application cert via GoReleaser's built-in quill integration — runs on any
+# OS, no Mac runner or keychain needed. Skipped when the secrets are absent
+# (e.g. local `--snapshot` builds), so this never blocks local testing.
+notarize:
+  macos:
+    - enabled: '{{ isEnvSet "MACOS_SIGN_P12" }}'
+      ids:
+        - cf
+      sign:
+        certificate: "{{ .Env.MACOS_SIGN_P12 }}"
+        password: "{{ .Env.MACOS_SIGN_PASSWORD }}"
+      notarize:
+        issuer_id: "{{ .Env.MACOS_NOTARY_ISSUER_ID }}"
+        key_id: "{{ .Env.MACOS_NOTARY_KEY_ID }}"
+        key: "{{ .Env.MACOS_NOTARY_KEY }}"
+        wait: true
+        timeout: 20m
+
 archives:
   - formats: [tar.gz]
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
@@ -73,17 +92,6 @@ homebrew_casks:
     commit_author:
       name: clickfunnels-bot
       email: support@clickfunnels.com
-    # Until the macOS binary is signed + notarized, Homebrew casks quarantine the
-    # download and Gatekeeper blocks the unsigned binary. Strip the quarantine
-    # flag on install so `cf` runs. Remove this block once notarization is wired
-    # up.
-    hooks:
-      post:
-        install: |
-          if OS.mac?
-            system_command "/usr/bin/xattr",
-              args: ["-dr", "com.apple.quarantine", "#{staged_path}/cf"]
-          end
 
 # Windows: the .zip on the GitHub Release is the baseline. For `scoop install` or
 # `winget`, add a `scoops:`/`winget:` block here — each needs its own manifest

@@ -21,6 +21,18 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0 # full history + tags for the changelog
+      # Short-lived, homebrew-tap-scoped token for the cask push (the default
+      # GITHUB_TOKEN can't write to another repo). Same app as cfdev:
+      # cf-homebrew-tap-releaser, installed on this org with access to
+      # homebrew-tap only.
+      - name: Generate tap token
+        id: tap-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          owner: clickfunnels
+          repositories: homebrew-tap
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
@@ -30,5 +42,10 @@ jobs:
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # PAT/App token with write access to clickfunnels/homebrew-tap.
-          HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
+          HOMEBREW_TAP_GITHUB_TOKEN: ${{ steps.tap-token.outputs.token }}
+          # Developer ID signing + notarization (org secrets).
+          MACOS_SIGN_P12: ${{ secrets.MACOS_SIGN_P12 }}
+          MACOS_SIGN_PASSWORD: ${{ secrets.MACOS_SIGN_PASSWORD }}
+          MACOS_NOTARY_ISSUER_ID: ${{ secrets.MACOS_NOTARY_ISSUER_ID }}
+          MACOS_NOTARY_KEY_ID: ${{ secrets.MACOS_NOTARY_KEY_ID }}
+          MACOS_NOTARY_KEY: ${{ secrets.MACOS_NOTARY_KEY }}
