@@ -12,9 +12,9 @@ import (
 // TestAuthDoerInjectsBearer verifies the bearer token is added to every request
 // and a 2xx flows through the generated method as a decoded body.
 func TestAuthDoerInjectsBearer(t *testing.T) {
-	var gotAuth, gotPath string
+	var gotAuth, gotPath, gotUserAgent string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		gotAuth, gotPath = r.Header.Get("Authorization"), r.URL.Path
+		gotAuth, gotPath, gotUserAgent = r.Header.Get("Authorization"), r.URL.Path, r.Header.Get("User-Agent")
 		w.Header().Set("Content-Type", "application/json")
 		io.WriteString(w, `[{"id":1,"public_id":"abc"}]`)
 	}))
@@ -33,6 +33,9 @@ func TestAuthDoerInjectsBearer(t *testing.T) {
 	}
 	if gotPath != "/teams" {
 		t.Errorf("path = %q, want /teams", gotPath)
+	}
+	if gotUserAgent != userAgent {
+		t.Errorf("user-agent header = %q, want %q", gotUserAgent, userAgent)
 	}
 	if resp.JSON200 == nil || len(*resp.JSON200) != 1 {
 		t.Fatalf("expected one team decoded, got %v", resp.JSON200)
@@ -100,6 +103,9 @@ func TestRawRequest(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Authorization") != "Bearer tok" {
 			t.Errorf("missing bearer auth")
+		}
+		if r.Header.Get("User-Agent") != userAgent {
+			t.Errorf("user-agent header = %q, want %q", r.Header.Get("User-Agent"), userAgent)
 		}
 		w.WriteHeader(http.StatusUnprocessableEntity)
 		io.WriteString(w, `{"error":"nope"}`)

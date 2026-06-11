@@ -33,6 +33,7 @@ func RawRequest(ctx context.Context, baseURL, token, method, path string, body [
 	}
 	req.Header.Set("Authorization", "Bearer "+token)
 	req.Header.Set("Accept", "application/json")
+	req.Header.Set("User-Agent", userAgent)
 	if len(body) > 0 {
 		req.Header.Set("Content-Type", "application/json")
 	}
