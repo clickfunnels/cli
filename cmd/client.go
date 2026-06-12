@@ -5,8 +5,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/clickfunnels/clickfunnels-cli/internal/api"
-	"github.com/clickfunnels/clickfunnels-cli/internal/config"
+	"github.com/clickfunnels/cli/internal/api"
+	"github.com/clickfunnels/cli/internal/config"
 )
 
 // workspaceSelector returns the active-workspace selector: the --workspace flag

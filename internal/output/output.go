@@ -21,7 +21,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/clickfunnels/clickfunnels-cli/internal/ui"
+	"github.com/clickfunnels/cli/internal/ui"
 )
 
 // Format is an output format.

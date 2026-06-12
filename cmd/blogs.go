@@ -6,9 +6,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/clickfunnels/clickfunnels-cli/internal/api"
-	"github.com/clickfunnels/clickfunnels-cli/internal/output"
-	"github.com/clickfunnels/clickfunnels-cli/internal/ui"
+	"github.com/clickfunnels/cli/internal/api"
+	"github.com/clickfunnels/cli/internal/output"
+	"github.com/clickfunnels/cli/internal/ui"
 )
 
 // Blogs::Post is a child resource nested under a Blog: the API route is

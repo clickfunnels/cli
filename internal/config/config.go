@@ -1,10 +1,12 @@
 // Package config handles persistent CLI configuration and credential storage.
 //
-// ClickFunnels OAuth authorizations are workspace-scoped: one login grants a
-// token for exactly one workspace. Power users sign in to several workspaces,
-// so we store a *set* of authorized Accounts (each with its own token) and
-// select between them Heroku-style — if only one is signed in it's implied,
-// otherwise the user passes --workspace (or sets CF_CLI_WORKSPACE).
+// `cf auth login` has two modes. By default it authorizes as the human user,
+// whose token can reach every workspace they belong to — we record one Account
+// per reachable workspace, all sharing that token. With --installation it uses
+// the legacy workspace-scoped "installation" flow (a persistent per-workspace
+// faux-user token), recording a single Account. Either way we store a *set* of
+// Accounts and select between them Heroku-style — if only one is signed in it's
+// implied, otherwise the user passes --workspace (or sets CF_CLI_WORKSPACE).
 //
 // Everything lives under an XDG-style config directory (e.g. ~/.config/cf):
 //   - config.json       non-secret login defaults (client id, host)
@@ -47,8 +49,9 @@ type Config struct {
 	Host string `json:"host,omitempty"`
 }
 
-// Account is a single authorized workspace and its token. ClickFunnels tokens
-// are workspace-scoped, so there is exactly one Account per authorization.
+// Account is a single authorized workspace and its token. An installation login
+// yields one Account; a user login yields one per reachable workspace, all
+// sharing the same token.
 type Account struct {
 	Subdomain   string `json:"subdomain"`
 	Host        string `json:"host,omitempty"`
@@ -59,6 +62,9 @@ type Account struct {
 	AccessToken string `json:"access_token"`
 	TokenType   string `json:"token_type,omitempty"`
 	Scope       string `json:"scope,omitempty"`
+	// Installation is true when this Account came from the --installation
+	// (workspace-scoped faux-user) flow rather than a personal user login.
+	Installation bool `json:"installation,omitempty"`
 	// APIBaseURL, when set, overrides the constructed base URL entirely (scheme,
 	// host, port, and /api/v2 path). Used to point the CLI at a local/dev/test
 	// server, e.g. http://127.0.0.1:3001/api/v2. The CF_CLI_API_BASE_URL env var
