@@ -29,6 +29,8 @@ type APIError struct {
 	Message    string
 }
 
+const userAgent = "ClickFunnelsCLI"
+
 func (e *APIError) Error() string {
 	return fmt.Sprintf("api error (%d): %s", e.StatusCode, e.Message)
 }
@@ -45,6 +47,7 @@ type authDoer struct {
 func (d *authDoer) Do(req *http.Request) (*http.Response, error) {
 	req.Header.Set("Authorization", "Bearer "+d.token)
 	req.Header.Set("Accept", "application/json")
+	req.Header.Set("User-Agent", userAgent)
 
 	resp, err := d.http.Do(req)
 	if err != nil {
